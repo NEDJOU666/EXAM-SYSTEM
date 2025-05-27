@@ -1,156 +1,110 @@
-'use client';
+"use client"
+import React, { useState } from 'react';
 
-import { useState } from 'react';
-import Link from 'next/link';
-
-export default function LoginPage() {
+const ForgotPassword = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
+    setMessage('');
     setError('');
-    setSuccess('');
-
-    if (!email || !password) {
-      setError('Please enter both email and password.');
-      return;
-    }
 
     try {
-      const res = await fetch('/api/login', {
+      const response = await fetch('/api/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
-        setError(data.error || 'Login failed');
+      if (response.ok) {
+        setMessage(data.message || 'Check your email for a reset link.');
       } else {
-        setSuccess('Login successful!');
-        console.log('Logged in user:', data.user);
-        // Optional: redirect after login
-        // window.lo cation.href = '/dashboard';
+        setError(data.error || 'Something went wrong.');
       }
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError('Server error.');
     }
   };
 
   return (
     <div style={styles.container}>
-      <form onSubmit={handleLogin} style={styles.form}>
-        <h2 style={styles.heading}>Login</h2>
+      <h2 style={styles.title}>Forgot Your Password?</h2>
+      <p style={styles.subtitle}>Enter your email to reset your password</p>
 
-        {error && <p style={styles.error}>{error}</p>}
-        {success && <p style={styles.success}>{success}</p>}
-
-        <div style={styles.inputGroup}>
-          <label>Email:</label>
-          <input
-            type="email"
-            value={email}
-            placeholder="you@example.com"
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-          />
-        </div>
-
-        <div style={styles.inputGroup}>
-          <label>Password:</label>
-          <input
-            type="password"
-            value={password}
-            placeholder="••••••••"
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-          />
-        </div>
-
-        <button type="submit" style={styles.button}>Log In</button>
-
-        <div style={styles.links}>
-          <p>
-            Don’t have an account? <Link href="/signup" style={styles.link}>Create one</Link>
-          </p>
-          <p>
-            <Link href="/forgot-password" style={styles.link}>Forgot password?</Link>
-          </p>
-        </div>
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <input
+          type="email"
+          placeholder="Email address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={styles.input}
+        />
+        <button type="submit" style={styles.button}>Send Reset Link</button>
       </form>
+
+      {message && <p style={styles.success}>{message}</p>}
+      {error && <p style={styles.error}>{error}</p>}
     </div>
   );
-}
+};
 
 const styles = {
   container: {
-    minHeight: '100vh',
-    backgroundColor: 'lightgray',
-    color:'black',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
+    maxWidth: '400px',
+    margin: '100px auto',
+    padding: '30px',
+    border: '1px solid lightgray',
+    borderRadius: '10px',
+    backgroundColor: 'white',
+    fontFamily: 'Arial, sans-serif',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
+  },
+  title: {
+    textAlign: 'center',
+    marginBottom: '10px',
+    color: 'black',
+  },
+  subtitle: {
+    textAlign: 'center',
+    fontSize: '14px',
+    color: 'dimgray',
+    marginBottom: '20px',
   },
   form: {
-    backgroundColor: 'white',
-    padding: '30px',
-    borderRadius: '10px',
-    boxShadow: '0 4px 12px gray',
-    width: '100%',
-    maxWidth: '400px',
-  },
-  heading: {
-    textAlign: 'center',
-    marginBottom: '20px',
-    color: 'black',
-  },
-  inputGroup: {
-    marginBottom: '15px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
   },
   input: {
-    width: '100%',
-    padding: '10px',
-    marginTop: '5px',
-    borderRadius: '5px',
-    border: '1px solid darkgray',
+    padding: '12px',
     fontSize: '16px',
-    color: 'black',
-    backgroundColor: 'white',
+    border: '1px solid silver',
+    borderRadius: '6px',
   },
   button: {
-    width: '100%',
     padding: '12px',
-    backgroundColor: 'skyblue',
+    fontSize: '16px',
+    backgroundColor: 'dodgerblue',
     color: 'white',
-    fontWeight: 'bold',
     border: 'none',
-    borderRadius: '5px',
+    borderRadius: '6px',
     cursor: 'pointer',
-    marginTop: '10px',
-  },
-  links: {
-    textAlign: 'center',
-    marginTop: '15px',
-    fontSize: '14px',
-  },
-  link: {
-    color: 'blue',
-    textDecoration: 'underline',
-    cursor: 'pointer',
-  },
-  error: {
-    color: 'red',
-    marginBottom: '10px',
-    textAlign: 'center',
   },
   success: {
     color: 'green',
-    marginBottom: '10px',
+    marginTop: '15px',
+    textAlign: 'center',
+  },
+  error: {
+    color: 'red',
+    marginTop: '15px',
     textAlign: 'center',
   },
 };
+
+export default ForgotPassword;
