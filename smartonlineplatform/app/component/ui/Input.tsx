@@ -1,7 +1,7 @@
 "use client";
 import { error } from 'console';
 import { Span } from 'next/dist/trace';
-import React from 'react'
+import React, { Dispatch } from 'react'
 import { Eye, EyeClosed, EyeOff, User } from 'lucide-react';
 import { cn } from '@/app/lib/utils';
 import { on } from 'events';
@@ -30,7 +30,7 @@ type InputProps = {
     message?: string[];
     type?: ErrorType;
   } | null;
-  
+  setError?:Dispatch<React.SetStateAction<boolean>>;
 } & React.InputHTMLAttributes<HTMLInputElement>;
 
 function validateInput(input: string, rules: ErrorType): string[] {
@@ -92,16 +92,17 @@ function validateInput(input: string, rules: ErrorType): string[] {
 
   return errors;
 }
-const Input = ({className,inputClassName,icon,IconClassName,error,OnChange,...props}:InputProps) => {
+const Input = ({className,inputClassName,icon,setError,IconClassName,error,OnChange,...props}:InputProps) => {
   const [errorMessages, setErrorMessages] = React.useState<string[]>(error?.message || []);
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if(validateInput(value, error?.type || props.type == "email" ? {emailValidation:true}:{}).length > 0) {
       
         setErrorMessages(validateInput(value, error?.type || props.type == "email" ? {emailValidation:true}:{}));
-      
+        setError && setError(true);
       return;
     }
+    setError && setError(false);
   OnChange && OnChange(value);
     setErrorMessages([]);
   }
