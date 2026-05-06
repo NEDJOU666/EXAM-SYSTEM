@@ -8,7 +8,7 @@ import type { Role } from "@prisma/client";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(1),
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -30,18 +30,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
-
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
 
-        const passwordMatch = await bcrypt.compare(password, user.password);
-        if (!passwordMatch) return null;
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return null;
+
+        // Resolve tenant slug for non-super-admin users
+        let tenantSlug: string | null = null;
+        if (user.role !== "SUPER_ADMIN") {
+          const student   = await prisma.student.findUnique({ where: { userId: user.id }, include: { univ: true } });
+          const teacher   = await prisma.teacher.findUnique({ where: { userId: user.id }, include: { univ: true } });
+          const univAdmin = await prisma.univAdmin.findUnique({ where: { userId: user.id }, include: { univ: true } });
+          tenantSlug = student?.univ.slug ?? teacher?.univ.slug ?? univAdmin?.univ.slug ?? null;
+        }
 
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
+          id:          user.id,
+          email:       user.email,
+          name:        user.name,
+          role:        user.role,
+          tenantSlug,
         };
       },
     }),
@@ -49,15 +58,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = (user as { role: Role }).role;
+        token.id         = user.id;
+        token.role       = (user as { role: Role }).role;
+        token.tenantSlug = (user as { tenantSlug?: string | null }).tenantSlug ?? null;
       }
       return token;
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as Role;
+        session.user.id         = token.id as string;
+        session.user.role       = token.role as Role;
+        session.user.tenantSlug = token.tenantSlug as string | null;
       }
       return session;
     },

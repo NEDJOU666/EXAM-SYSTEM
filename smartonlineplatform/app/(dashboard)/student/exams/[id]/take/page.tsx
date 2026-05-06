@@ -3,34 +3,46 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ExamTimer from "@/components/exam/ExamTimer";
+import ProctoringOverlay from "@/components/proctoring/ProctoringOverlay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-type Option = { id: string; text: string };
+type Option   = { id: string; text: string };
 type Question = { id: string; text: string; points: number; options: Option[] };
-type Exam = { id: string; title: string; duration: number; questions: Question[] };
+type Exam     = { id: string; title: string; duration: number; questions: Question[] };
 
 export default function TakeExamPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const router  = useRouter();
 
-  const [exam, setExam] = useState<Exam | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string | null>>({});
-  const [current, setCurrent] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [result, setResult] = useState<{ score: number; maxScore: number; percentage: number } | null>(null);
+  const [exam,        setExam]        = useState<Exam | null>(null);
+  const [answers,     setAnswers]     = useState<Record<string, string | null>>({});
+  const [current,     setCurrent]     = useState(0);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [submitted,   setSubmitted]   = useState(false);
+  const [result,      setResult]      = useState<{ score: number; maxScore: number; percentage: number } | null>(null);
+  const [submissionId,     setSubmissionId]     = useState<string | null>(null);
+  const [proctoringEnabled, setProctoringEnabled] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/exams/${id}`)
-      .then((r) => r.json())
-      .then((data: Exam) => {
-        setExam(data);
-        const init: Record<string, string | null> = {};
-        data.questions.forEach((q) => (init[q.id] = null));
-        setAnswers(init);
-      });
+    async function init() {
+      const examRes = await fetch(`/api/exams/${id}`);
+      const data: Exam = await examRes.json();
+      setExam(data);
+      const init: Record<string, string | null> = {};
+      data.questions.forEach((q) => (init[q.id] = null));
+      setAnswers(init);
+
+      // Create the submission upfront so proctoring events have an ID
+      const startRes = await fetch(`/api/exams/${id}/start`, { method: "POST" });
+      if (startRes.ok) {
+        const startData = await startRes.json();
+        setSubmissionId(startData.submissionId);
+        setProctoringEnabled(startData.proctoringEnabled ?? false);
+      }
+    }
+    init();
   }, [id]);
 
   const submit = useCallback(async () => {
@@ -39,16 +51,16 @@ export default function TakeExamPage() {
 
     const payload = {
       answers: exam.questions.map((q) => ({
-        questionId: q.id,
+        questionId:      q.id,
         selectedOptionId: answers[q.id] ?? null,
       })),
     };
 
     try {
       const res = await fetch(`/api/exams/${id}/submit`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body:    JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -90,80 +102,89 @@ export default function TakeExamPage() {
     );
   }
 
-  const q = exam.questions[current];
-  const total = exam.questions.length;
+  const q      = exam.questions[current];
+  const total  = exam.questions.length;
   const answered = Object.values(answers).filter(Boolean).length;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-bold text-gray-800 text-lg">{exam.title}</h1>
-        <ExamTimer durationMinutes={exam.duration} onExpire={submit} />
-      </div>
+    <>
+      {submissionId && (
+        <ProctoringOverlay submissionId={submissionId} enabled={proctoringEnabled} />
+      )}
 
-      <div className="text-sm text-gray-500">
-        Question {current + 1} of {total} · {answered} answered
-      </div>
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="font-bold text-gray-800 text-lg">{exam.title}</h1>
+          <ExamTimer durationMinutes={exam.duration} onExpire={submit} />
+        </div>
 
-      <div className="w-full bg-gray-200 rounded-full h-1.5">
-        <div
-          className="bg-sky-500 h-1.5 rounded-full transition-all"
-          style={{ width: `${((current + 1) / total) * 100}%` }}
-        />
-      </div>
+        <div className="text-sm text-gray-500">
+          Question {current + 1} of {total} · {answered} answered
+          {proctoringEnabled && (
+            <span className="ml-3 text-red-500 font-medium">● Proctored</span>
+          )}
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium leading-relaxed">
-            {q.text}
-          </CardTitle>
-          <span className="text-xs text-gray-400">{q.points} pt{q.points !== 1 ? "s" : ""}</span>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {q.options.map((opt) => (
-            <label
-              key={opt.id}
-              className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                answers[q.id] === opt.id
-                  ? "border-sky-400 bg-sky-50"
-                  : "border-gray-200 hover:bg-gray-50"
-              }`}
-            >
-              <input
-                type="radio"
-                name={q.id}
-                value={opt.id}
-                checked={answers[q.id] === opt.id}
-                onChange={() => setAnswers((a) => ({ ...a, [q.id]: opt.id }))}
-                className="accent-sky-500"
-              />
-              <span className="text-sm text-gray-700">{opt.text}</span>
-            </label>
-          ))}
-        </CardContent>
-      </Card>
+        <div className="w-full bg-gray-200 rounded-full h-1.5">
+          <div
+            className="bg-sky-500 h-1.5 rounded-full transition-all"
+            style={{ width: `${((current + 1) / total) * 100}%` }}
+          />
+        </div>
 
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          disabled={current === 0}
-          onClick={() => setCurrent((c) => c - 1)}
-        >
-          Previous
-        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium leading-relaxed">
+              {q.text}
+            </CardTitle>
+            <span className="text-xs text-gray-400">{q.points} pt{q.points !== 1 ? "s" : ""}</span>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {q.options.map((opt) => (
+              <label
+                key={opt.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  answers[q.id] === opt.id
+                    ? "border-sky-400 bg-sky-50"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={q.id}
+                  value={opt.id}
+                  checked={answers[q.id] === opt.id}
+                  onChange={() => setAnswers((a) => ({ ...a, [q.id]: opt.id }))}
+                  className="accent-sky-500"
+                />
+                <span className="text-sm text-gray-700">{opt.text}</span>
+              </label>
+            ))}
+          </CardContent>
+        </Card>
 
-        {current < total - 1 ? (
-          <Button onClick={() => setCurrent((c) => c + 1)}>Next</Button>
-        ) : (
+        <div className="flex justify-between">
           <Button
-            variant="success"
-            onClick={submit}
-            disabled={submitting}
+            variant="outline"
+            disabled={current === 0}
+            onClick={() => setCurrent((c) => c - 1)}
           >
-            {submitting ? "Submitting…" : "Submit Exam"}
+            Previous
           </Button>
-        )}
+
+          {current < total - 1 ? (
+            <Button onClick={() => setCurrent((c) => c + 1)}>Next</Button>
+          ) : (
+            <Button
+              variant="success"
+              onClick={submit}
+              disabled={submitting}
+            >
+              {submitting ? "Submitting…" : "Submit Exam"}
+            </Button>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

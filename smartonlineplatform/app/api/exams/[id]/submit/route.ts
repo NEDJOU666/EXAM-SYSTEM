@@ -28,16 +28,14 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const student = await prisma.student.findUnique({
-    where: { userId: session.user.id },
-  });
+  const student = await prisma.student.findUnique({ where: { userId: session.user.id } });
   if (!student) return NextResponse.json({ error: "Student not found" }, { status: 400 });
 
-  // Prevent double submission
+  // Check for already-scored submission (double-submit guard)
   const existing = await prisma.examSubmission.findUnique({
     where: { studentId_examId: { studentId: student.id, examId } },
   });
-  if (existing) {
+  if (existing?.score !== null && existing?.score !== undefined) {
     return NextResponse.json({ error: "Already submitted" }, { status: 409 });
   }
 
@@ -54,33 +52,49 @@ export async function POST(
     maxScore += q.points;
     const correctOptionId = q.options[0]?.id;
     const studentAnswer = parsed.data.answers.find((a) => a.questionId === q.id);
-    if (
-      correctOptionId &&
-      studentAnswer?.selectedOptionId === correctOptionId
-    ) {
+    if (correctOptionId && studentAnswer?.selectedOptionId === correctOptionId) {
       score += q.points;
     }
   }
 
-  const submission = await prisma.examSubmission.create({
-    data: {
-      studentId: student.id,
-      examId,
-      score,
-      maxScore,
-      answers: {
-        create: parsed.data.answers.map((a) => ({
-          questionId: a.questionId,
-          selectedOptionId: a.selectedOptionId,
-        })),
+  let submission;
+
+  if (existing) {
+    // Update the pre-created submission from /start
+    submission = await prisma.examSubmission.update({
+      where: { id: existing.id },
+      data: {
+        score,
+        maxScore,
+        answers: {
+          create: parsed.data.answers.map((a) => ({
+            questionId:      a.questionId,
+            selectedOptionId: a.selectedOptionId,
+          })),
+        },
       },
-    },
-  });
+    });
+  } else {
+    submission = await prisma.examSubmission.create({
+      data: {
+        studentId: student.id,
+        examId,
+        score,
+        maxScore,
+        answers: {
+          create: parsed.data.answers.map((a) => ({
+            questionId:      a.questionId,
+            selectedOptionId: a.selectedOptionId,
+          })),
+        },
+      },
+    });
+  }
 
   return NextResponse.json({
     score,
     maxScore,
-    percentage: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
+    percentage:   maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
     submissionId: submission.id,
   });
 }

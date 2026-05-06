@@ -35,7 +35,8 @@ export default function LoginPage() {
     const session = await res.json();
     const role = session?.user?.role;
 
-    if (role === "ADMIN") router.push("/admin/dashboard");
+    if (role === "SUPER_ADMIN")  router.push("/superadmin/dashboard");
+    else if (role === "UNIV_ADMIN") router.push("/admin/dashboard");
     else if (role === "TEACHER") router.push("/teacher/dashboard");
     else router.push("/student/dashboard");
   }

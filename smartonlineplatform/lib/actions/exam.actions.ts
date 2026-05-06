@@ -20,12 +20,13 @@ const questionSchema = z.object({
 });
 
 const examSchema = z.object({
-  title: z.string().min(2),
-  description: z.string().optional(),
-  duration: z.number().int().min(1),
-  rules: z.string().optional(),
-  scheduledAt: z.string(),
-  questions: z.array(questionSchema).min(1),
+  title:             z.string().min(2),
+  description:       z.string().optional(),
+  duration:          z.number().int().min(1),
+  rules:             z.string().optional(),
+  scheduledAt:       z.string(),
+  proctoringEnabled: z.boolean().optional(),
+  questions:         z.array(questionSchema).min(1),
 });
 
 export async function createExamAction(data: z.infer<typeof examSchema>) {
@@ -46,9 +47,10 @@ export async function createExamAction(data: z.infer<typeof examSchema>) {
       description: parsed.data.description,
       duration: parsed.data.duration,
       rules: parsed.data.rules,
-      scheduledAt: new Date(parsed.data.scheduledAt),
+      scheduledAt:       new Date(parsed.data.scheduledAt),
+      proctoringEnabled: parsed.data.proctoringEnabled ?? false,
       teacherId: teacher.id,
-      univId: teacher.univId,
+      univId:    teacher.univId,
       questions: {
         create: parsed.data.questions.map((q) => ({
           text: q.text,

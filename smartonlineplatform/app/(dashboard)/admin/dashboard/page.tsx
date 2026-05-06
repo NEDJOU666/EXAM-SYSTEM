@@ -7,16 +7,30 @@ export const metadata = { title: "Admin Dashboard" };
 
 export default async function AdminDashboard() {
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session || session.user.role !== "UNIV_ADMIN") redirect("/login");
 
-  const [userCount, examCount, submissionCount, univCount] = await Promise.all([
-    prisma.user.count(),
-    prisma.exam.count(),
-    prisma.examSubmission.count(),
-    prisma.university.count(),
+  const univAdmin = await prisma.univAdmin.findUnique({
+    where:   { userId: session.user.id },
+    include: { univ: true },
+  });
+  if (!univAdmin) redirect("/login");
+
+  const univId = univAdmin.univId;
+
+  const [studentCount, teacherCount, examCount, submissionCount] = await Promise.all([
+    prisma.student.count({ where: { univId } }),
+    prisma.teacher.count({ where: { univId } }),
+    prisma.exam.count({ where: { univId } }),
+    prisma.examSubmission.count({ where: { exam: { univId } } }),
   ]);
 
   const recentUsers = await prisma.user.findMany({
+    where: {
+      OR: [
+        { student: { univId } },
+        { teacher: { univId } },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     take: 5,
     select: { id: true, name: true, email: true, role: true, createdAt: true },
@@ -24,12 +38,15 @@ export default async function AdminDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">{univAdmin.univ.name}</p>
+      </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Users", value: userCount },
-          { label: "Universities", value: univCount },
+          { label: "Students", value: studentCount },
+          { label: "Teachers", value: teacherCount },
           { label: "Exams", value: examCount },
           { label: "Submissions", value: submissionCount },
         ].map((s) => (
@@ -57,6 +74,9 @@ export default async function AdminDashboard() {
                 </span>
               </li>
             ))}
+            {recentUsers.length === 0 && (
+              <li className="py-6 text-center text-gray-400 text-sm">No users yet.</li>
+            )}
           </ul>
         </CardContent>
       </Card>
