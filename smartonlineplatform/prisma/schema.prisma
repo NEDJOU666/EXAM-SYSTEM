@@ -10,9 +10,22 @@ datasource db {
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum Role {
-  STUDENT
+  SUPER_ADMIN  // Platform owner — controls all tenants
+  UNIV_ADMIN   // University admin — manages their tenant
   TEACHER
-  ADMIN
+  STUDENT
+}
+
+enum UniversityStatus {
+  PENDING    // Registered, awaiting super-admin approval
+  ACTIVE
+  SUSPENDED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum ExamStatus {
@@ -26,6 +39,17 @@ enum QuestionType {
   TRUE_FALSE
 }
 
+enum ProctoringEventType {
+  EXAM_STARTED
+  FACE_MISSING
+  MULTIPLE_FACES
+  GAZE_AWAY
+  TAB_BLUR
+  FULLSCREEN_EXIT
+  COPY_ATTEMPT
+  EXAM_SUBMITTED
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 model User {
@@ -37,11 +61,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  student      Student?
-  teacher      Teacher?
-  adminProfile AdminProfile?
-  accounts     Account[]
-  sessions     Session[]
+  student    Student?
+  teacher    Teacher?
+  univAdmin  UnivAdmin?
+  accounts   Account[]
+  sessions   Session[]
 }
 
 model Account {
@@ -80,16 +104,61 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// ─── Roles / Profiles ─────────────────────────────────────────────────────────
+// ─── University ───────────────────────────────────────────────────────────────
+
+model University {
+  id        String           @id @default(cuid())
+  name      String
+  domain    String           @unique  // e.g. ictuniversity.edu.cm
+  slug      String           @unique  // e.g. "ict" → ict.smartexam.app
+  status    UniversityStatus @default(ACTIVE)
+  country   String?
+  phone     String?
+  logoUrl   String?
+  createdAt DateTime         @default(now())
+
+  students  Student[]
+  teachers  Teacher[]
+  univAdmin UnivAdmin?
+  exams     Exam[]
+}
+
+// ─── University Registration Request ─────────────────────────────────────────
+
+model UniversityRegistration {
+  id              String             @id @default(cuid())
+  name            String
+  domain          String
+  slug            String             @unique
+  contactName     String
+  email           String             @unique
+  phone           String?
+  country         String?
+  status          RegistrationStatus @default(PENDING)
+  rejectionReason String?            @db.Text
+  reviewedAt      DateTime?
+  createdAt       DateTime           @default(now())
+}
+
+// ─── Role Profiles ────────────────────────────────────────────────────────────
+
+model UnivAdmin {
+  id     String @id @default(cuid())
+  userId String @unique
+  univId String @unique  // one admin per university
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  univ University @relation(fields: [univId], references: [id])
+}
 
 model Student {
   id     String @id @default(cuid())
   userId String @unique
   univId String
 
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  univ         University     @relation(fields: [univId], references: [id])
-  submissions  ExamSubmission[]
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  univ        University       @relation(fields: [univId], references: [id])
+  submissions ExamSubmission[]
 }
 
 model Teacher {
@@ -102,43 +171,25 @@ model Teacher {
   exams Exam[]
 }
 
-model AdminProfile {
-  id     String @id @default(cuid())
-  userId String @unique
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// ─── University ───────────────────────────────────────────────────────────────
-
-model University {
-  id     String @id @default(cuid())
-  name   String
-  domain String @unique
-
-  students Student[]
-  teachers Teacher[]
-  exams    Exam[]
-}
-
 // ─── Exam ─────────────────────────────────────────────────────────────────────
 
 model Exam {
-  id          String     @id @default(cuid())
-  title       String
-  description String?    @db.Text
-  duration    Int        // minutes
-  rules       String?    @db.Text
-  status      ExamStatus @default(DRAFT)
-  scheduledAt DateTime
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  title           String
+  description     String?    @db.Text
+  duration        Int        // minutes
+  rules           String?    @db.Text
+  status          ExamStatus @default(DRAFT)
+  scheduledAt     DateTime
+  proctoringEnabled Boolean  @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   teacherId String
   univId    String
 
-  teacher     Teacher        @relation(fields: [teacherId], references: [id])
-  univ        University     @relation(fields: [univId], references: [id])
+  teacher     Teacher          @relation(fields: [teacherId], references: [id])
+  univ        University       @relation(fields: [univId], references: [id])
   questions   Question[]
   submissions ExamSubmission[]
 }
@@ -176,9 +227,10 @@ model ExamSubmission {
   studentId String
   examId    String
 
-  student Student  @relation(fields: [studentId], references: [id])
-  exam    Exam     @relation(fields: [examId], references: [id])
-  answers Answer[]
+  student          Student          @relation(fields: [studentId], references: [id])
+  exam             Exam             @relation(fields: [examId], references: [id])
+  answers          Answer[]
+  proctoringEvents ProctoringEvent[]
 
   @@unique([studentId, examId])
 }
@@ -192,4 +244,16 @@ model Answer {
 
   question   Question       @relation(fields: [questionId], references: [id])
   submission ExamSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+// ─── Proctoring ───────────────────────────────────────────────────────────────
+
+model ProctoringEvent {
+  id        String              @id @default(cuid())
+  type      ProctoringEventType
+  timestamp DateTime            @default(now())
+  metadata  Json?               // e.g. { confidence: 0.95, faceCount: 2 }
+
+  submissionId String
+  submission   ExamSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 }

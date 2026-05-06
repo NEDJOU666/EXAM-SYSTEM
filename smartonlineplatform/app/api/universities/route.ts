@@ -12,13 +12,14 @@ export async function GET() {
 }
 
 const createSchema = z.object({
-  name: z.string().min(2),
+  name:   z.string().min(2),
   domain: z.string().min(3),
+  slug:   z.string().min(2).regex(/^[a-z0-9-]+$/),
 });
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || session.user.role !== "SUPER_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

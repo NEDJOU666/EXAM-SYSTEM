@@ -7,27 +7,34 @@ import type { Role } from "@prisma/client";
 
 const studentLinks = [
   { href: "/student/dashboard", label: "Dashboard" },
-  { href: "/student/exams", label: "Exams" },
-  { href: "/student/results", label: "My Results" },
-  { href: "/student/profile", label: "Profile" },
+  { href: "/student/exams",     label: "Exams" },
+  { href: "/student/results",   label: "My Results" },
+  { href: "/student/profile",   label: "Profile" },
 ];
 
 const teacherLinks = [
   { href: "/teacher/dashboard", label: "Dashboard" },
-  { href: "/teacher/exams", label: "My Exams" },
-  { href: "/teacher/results", label: "Results" },
+  { href: "/teacher/exams",     label: "My Exams" },
+  { href: "/teacher/results",   label: "Results" },
 ];
 
-const adminLinks = [
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/users", label: "Users" },
-  { href: "/admin/universities", label: "Universities" },
+const univAdminLinks = [
+  { href: "/admin/dashboard",   label: "Dashboard" },
+  { href: "/admin/users",       label: "Users" },
+  { href: "/admin/proctoring",  label: "Proctoring" },
+];
+
+const superAdminLinks = [
+  { href: "/superadmin/dashboard",      label: "Dashboard" },
+  { href: "/superadmin/registrations",  label: "Registrations" },
+  { href: "/superadmin/universities",   label: "Universities" },
 ];
 
 const linksByRole: Record<Role, typeof studentLinks> = {
-  STUDENT: studentLinks,
-  TEACHER: teacherLinks,
-  ADMIN: adminLinks,
+  STUDENT:     studentLinks,
+  TEACHER:     teacherLinks,
+  UNIV_ADMIN:  univAdminLinks,
+  SUPER_ADMIN: superAdminLinks,
 };
 
 export default function Sidebar({ role }: { role: Role }) {

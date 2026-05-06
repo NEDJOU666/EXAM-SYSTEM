@@ -16,6 +16,7 @@ export default function NewExamPage() {
     duration: 60,
     rules: "",
     scheduledAt: "",
+    proctoringEnabled: false,
   });
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,6 +135,18 @@ export default function NewExamPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
               />
             </div>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.proctoringEnabled}
+                onChange={(e) => setForm((f) => ({ ...f, proctoringEnabled: e.target.checked }))}
+                className="w-4 h-4 accent-sky-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Enable AI proctoring (face detection, tab monitoring)
+              </span>
+            </label>
           </CardContent>
         </Card>
 

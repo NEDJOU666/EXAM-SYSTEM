@@ -59,7 +59,6 @@ export default function AdminUserActions({ userId, currentRole }: Props) {
       >
         <option value="STUDENT">STUDENT</option>
         <option value="TEACHER">TEACHER</option>
-        <option value="ADMIN">ADMIN</option>
       </select>
       <button
         onClick={handleDelete}
